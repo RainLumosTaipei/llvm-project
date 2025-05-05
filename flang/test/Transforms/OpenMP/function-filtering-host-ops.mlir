@@ -163,7 +163,7 @@ module attributes {omp.is_target_device = true} {
   // CHECK-SAME: (%[[X:.*]]: [[X_TYPE:[^)]*]])
   func.func @box_ptr(%x: !fir.ref<!fir.box<!fir.ptr<!fir.array<?xi32>>>>) {
     // CHECK-NEXT: %[[ZERO:.*]] = arith.constant 0 : i64
-    // CHECK-NEXT: %[[SHAPE:.*]] = fir.shape %[[ZERO]] : (i64) -> !fir.shape<1>
+    // CHECK-NEXT: %[[SHAPE:.*]] = fir.shape_shift %[[ZERO]], %[[ZERO]] : (i64, i64) -> !fir.shapeshift<1>
     // CHECK-NEXT: %[[PLACEHOLDER_X:.*]] = fir.alloca i1
     // CHECK-NEXT: %[[ALLOCA_X:.*]] = fir.convert %[[PLACEHOLDER_X]] : (!fir.ref<i1>) -> [[X_TYPE]]
     %0 = fir.alloca !fir.box<!fir.ptr<!fir.array<?xi32>>>
@@ -187,7 +187,7 @@ module attributes {omp.is_target_device = true} {
     %9:3 = fir.box_dims %3, %c0_2 : (!fir.box<!fir.ptr<!fir.array<?xi32>>>, index) -> (index, index, index)
     %10 = fir.shape_shift %9#0, %9#1 : (index, index) -> !fir.shapeshift<1>
     
-    // CHECK-NEXT: %[[Y_DECL:.*]]:2 = hlfir.declare %[[ALLOCA_Y]](%[[SHAPE]]) {fortran_attrs = #fir.var_attrs<target>, uniq_name = "y"} : ([[Y_TYPE]], !fir.shape<1>) -> (!fir.box<!fir.array<?xi32>>, [[Y_TYPE]])
+    // CHECK-NEXT: %[[Y_DECL:.*]]:2 = hlfir.declare %[[ALLOCA_Y]](%[[SHAPE]]) {fortran_attrs = #fir.var_attrs<target>, uniq_name = "y"} : ([[Y_TYPE]], !fir.shapeshift<1>) -> (!fir.box<!fir.array<?xi32>>, [[Y_TYPE]])
     %11:2 = hlfir.declare %8(%10) {fortran_attrs = #fir.var_attrs<target>, uniq_name = "y"} : (!fir.ptr<!fir.array<?xi32>>, !fir.shapeshift<1>) -> (!fir.box<!fir.array<?xi32>>, !fir.ptr<!fir.array<?xi32>>)
     %c1_3 = arith.constant 1 : index
     %c0_4 = arith.constant 0 : index

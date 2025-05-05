@@ -22,6 +22,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 namespace flangomp {
 #define GEN_PASS_DEF_FUNCTIONFILTERINGPASS
@@ -443,16 +444,38 @@ private:
                                                  builder.getI64IntegerAttr(0));
 
       if (auto shape = declareOp.getShape()) {
+        // The pre-cg rewrite pass requires the shape to be defined by one of
+        // fir.shape, fir.shapeshift or fir.shift, so we need to make sure it's
+        // still defined by one of these after this pass.
         Operation *shapeOp = shape.getDefiningOp();
-        unsigned numArgs = shapeOp->getNumOperands();
-        if (isa<fir::ShapeShiftOp>(shapeOp))
-          numArgs /= 2;
+        llvm::SmallVector<Value> extents(shapeOp->getNumOperands(), zero);
+        Value newShape =
+            llvm::TypeSwitch<Operation *, Value>(shapeOp)
+                .Case([&](fir::ShapeOp op) {
+                  return builder.create<fir::ShapeOp>(op.getLoc(), extents);
+                })
+                .Case([&](fir::ShapeShiftOp op) {
+                  auto type = fir::ShapeShiftType::get(op.getContext(),
+                                                       extents.size() / 2);
+                  return builder.create<fir::ShapeShiftOp>(op.getLoc(), type,
+                                                           extents);
+                })
+                .Case([&](fir::ShiftOp op) {
+                  auto type =
+                      fir::ShiftType::get(op.getContext(), extents.size());
+                  return builder.create<fir::ShiftOp>(op.getLoc(), type,
+                                                      extents);
+                })
+                .Default([](Operation *op) {
+                  op->emitOpError()
+                      << "hlfir.declare shape expected to be one of: "
+                         "fir.shape, fir.shapeshift or fir.shift";
+                  return nullptr;
+                });
 
-        // Since the pre-cg rewrite pass requires the shape to be defined by one
-        // of fir.shape, fir.shapeshift or fir.shift, we need to create one of
-        // these.
-        llvm::SmallVector<Value> extents(numArgs, zero);
-        auto newShape = builder.create<fir::ShapeOp>(shape.getLoc(), extents);
+        if (!newShape)
+          return failure();
+
         declareOp.getShapeMutable().assign(newShape);
       }
 
